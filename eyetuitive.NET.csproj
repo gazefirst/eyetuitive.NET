@@ -11,6 +11,7 @@
 	  <Company>GazeFirst GmbH</Company>
 	  <PackageDescription>.NET API for eyetuitive eye tracking devices.</PackageDescription>
 	  <RepositoryUrl>https://github.com/gazefirst/eyetuitive.NET</RepositoryUrl>
+	  <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,6 +27,10 @@
 		</PackageReference>
 		<PackageReference Include="Polly" Version="8.4.2" />
 		<PackageReference Include="System.Net.Http.WinHttpHandler" Version="8.0.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="LICENSE.md" Pack="true" PackagePath=""/>
 	</ItemGroup>
 
 	<ItemGroup>
