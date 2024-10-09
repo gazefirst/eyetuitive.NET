@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	  <TargetFrameworks>net462;net6.0;net8.0</TargetFrameworks>
+	  <ImplicitUsings>disable</ImplicitUsings>
+	  <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+	  <Copyright>(c) 2024 GazeFirst GmbH</Copyright>
+	  <PackageId>eyetuitive.NET</PackageId>
+	  <Version>1.0.0</Version>
+	  <Authors>Mathias Anhalt</Authors>
+	  <Company>GazeFirst GmbH</Company>
+	  <PackageDescription>.NET API for eyetuitive eye tracking devices.</PackageDescription>
+	  <RepositoryUrl>https://github.com/gazefirst/eyetuitive.NET</RepositoryUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="protocol\Eyetracker.proto" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Google.Protobuf" Version="3.28.2" />
+		<PackageReference Include="Grpc.Net.Client" Version="2.66.0" />
+		<PackageReference Include="Grpc.Tools" Version="2.67.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+		<PackageReference Include="Polly" Version="8.4.2" />
+		<PackageReference Include="System.Net.Http.WinHttpHandler" Version="8.0.2" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Protobuf Include="protocol\Eyetracker.proto" GrpcServices="Client" />
+	</ItemGroup>
+	
+</Project>
