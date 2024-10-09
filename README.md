@@ -15,7 +15,9 @@
 
 ![Product](https://gazefirst.com/wp-content/uploads/2023/09/20230901_135229-Edit-2-768x162.jpg)
 
-Use this repo to integrate eyetuitive in your next .NET project / product.
+![NuGet Version](https://img.shields.io/nuget/v/eyetuitive.NET?style=flat-square)
+
+Use this repo / its published nuget package to integrate eyetuitive in your next .NET project / product.
 
 ## Connection
 

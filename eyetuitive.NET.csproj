@@ -6,12 +6,13 @@
 	  <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 	  <Copyright>(c) 2024 GazeFirst GmbH</Copyright>
 	  <PackageId>eyetuitive.NET</PackageId>
-	  <Version>1.0.0</Version>
+	  <Version>1.0.1</Version>
 	  <Authors>Mathias Anhalt</Authors>
 	  <Company>GazeFirst GmbH</Company>
 	  <PackageDescription>.NET API for eyetuitive eye tracking devices.</PackageDescription>
 	  <RepositoryUrl>https://github.com/gazefirst/eyetuitive.NET</RepositoryUrl>
 	  <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+	  <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -30,6 +31,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath=""/>
 		<None Include="LICENSE.md" Pack="true" PackagePath=""/>
 	</ItemGroup>
 
