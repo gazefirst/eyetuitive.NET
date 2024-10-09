@@ -23,7 +23,47 @@ You can connect to eyetuitive via gRPC.
 
 ## Note on legacy .NET versions
 
-This library supports .NET 6 and .NET 8 (both LTS). This library supports .NET 6 and .NET 8 (both LTS). However, .NET Framework 4.6.2 and later are only supported on Windows 11, since some underlying legacy gRPC implementations only support WinHttpHandler with http2 in Windows 11.
+This library supports .NET 6 and .NET 8 (both LTS). However, .NET Framework 4.6.2 and later are only supported on Windows 11, since some underlying legacy gRPC implementations only support WinHttpHandler with http2 in Windows 11.
+
+## Sample
+
+```csharp
+/// <summary>
+/// eyetuitive instance
+/// </summary>
+private eyetuitive device = new eyetuitive();
+
+/// <summary>
+/// Connect to the eye tracker
+/// </summary>
+private async Task Connect()
+{
+	bool connected = await device.ConnectAsync();
+	device.Position.StartPositionTracking(posHandler);
+	device.Gaze.StartGazeTracking(gazeHandler);
+}
+
+/// <summary>
+/// Handle gaze data
+/// </summary>
+/// <param name="sender"></param>
+/// <param name="e"></param>
+private void gazeHandler(object sender, GazeEventArgs e)
+{
+	NormedPoint2d gazepoint = e.gazePoint; //Normed as 0-1d - multiply with screen resolution if needed
+}
+
+/// <summary>
+/// Handle position data
+/// </summary>
+/// <param name="sender"></param>
+/// <param name="e"></param>
+private void posHandler(object sender, PositionEventArgs e)
+{
+	NormedPoint2d leftEyePosition = e.rightEyePos; //Normed as 0-1d - multiply with screen resolution if needed
+	NormedPoint2d rightEyePosition = e.leftEyePos; //Normed as 0-1d - multiply with screen resolution if needed
+}
+```
 
 ## License
 
