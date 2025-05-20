@@ -73,4 +73,4 @@ Distributed under our custom license. See [license file](LICENSE.md) for more in
 
 ## About
 
-(c) 2024 GazeFirst GmbH. Author: Mathias Anhalt
+(c) 2024 - 2025 GazeFirst GmbH. Author: Mathias Anhalt
