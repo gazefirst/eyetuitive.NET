@@ -87,8 +87,8 @@ namespace GazeFirst.functions
                     if (posstream.ResponseStream.Current != null)
                     {
                         var pos = posstream.ResponseStream.Current;
-                        NormedPoint2d left = new NormedPoint2d(pos.LeftEyePos.X, pos.LeftEyePos.Y);
-                        NormedPoint2d right = new NormedPoint2d(pos.RightEyePos.X, pos.RightEyePos.Y);
+                        NormedPoint2d left = ConvertFromNormedPoint2D(pos.LeftEyePos);
+                        NormedPoint2d right = ConvertFromNormedPoint2D(pos.RightEyePos);
                         var positionData = new PositionEventArgs()
                         {
                             depthInMM = pos.DepthInMM,
@@ -112,6 +112,21 @@ namespace GazeFirst.functions
             {
                 taskRunning = false;
             }
+        }
+
+        /// <summary>
+        /// Helper function to convert GazeFirst.NormedPoint2D to NormedPoint2d
+        /// </summary>
+        /// <param name="point"></param>
+        /// <returns></returns>
+        private NormedPoint2d ConvertFromNormedPoint2D(GazeFirst.NormedPoint2D point)
+        {
+            if(point.HasConfidence)
+            {
+                return new NormedPoint2d(point.X, point.Y, point.Confidence);
+            }
+            else
+                return new NormedPoint2d(point.X, point.Y);
         }
 
         /// <summary>

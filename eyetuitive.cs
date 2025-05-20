@@ -31,6 +31,8 @@ namespace GazeFirst
         private Calibration calibration;
         private Gaze gaze;
         private GazeFirst.functions.Settings settings;
+        private Users users;
+        private Video video;
 
         /// <summary>
         /// Client
@@ -54,7 +56,8 @@ namespace GazeFirst
             calibration?.UpdateClient(Client);
             gaze?.UpdateClient(Client);
             settings?.UpdateClient(Client);
-            //users?.UpdateClient(Client);
+            users?.UpdateClient(Client);
+            video?.UpdateClient(Client);
         }
 
         /// <summary>
@@ -102,6 +105,30 @@ namespace GazeFirst
             {
                 if (settings == null) settings = new GazeFirst.functions.Settings(Client);
                 return settings;
+            }
+        }
+
+        /// <summary>
+        /// Users object, used for getting user data and managing users
+        /// </summary>
+        public Users Users
+        {
+            get
+            {
+                if (users == null) users = new Users(Client);
+                return users;
+            }
+        }
+
+        /// <summary>
+        /// Video object, used for getting video data
+        /// </summary>
+        public Video Video
+        {
+            get
+            {
+                if (video == null) video = new Video(Client);
+                return video;
             }
         }
 

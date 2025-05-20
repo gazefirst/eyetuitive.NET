@@ -7,12 +7,12 @@ namespace GazeFirst
         /// <summary>
         /// Boolean indicating whether the calibration was successful
         /// </summary>
-        public bool success;
+        public bool success = false;
 
         /// <summary>
         /// Percentage rating of the calibration overall (0-100)
         /// </summary>
-        public int percentageRatingOverall;
+        public int percentageRatingOverall = 0;
 
         /// <summary>
         /// Percentage rating of the calibration per point (0-100)
@@ -33,5 +33,15 @@ namespace GazeFirst
         /// Can the calibration be improved
         /// </summary>
         public bool canImprove = false;
+
+        /// <summary>
+        /// Guid of this calibration and its result
+        /// </summary>
+        public Guid calibrationId = Guid.Empty;
+
+        /// <summary>
+        /// Timestamp (unix time) of the calibration
+        /// </summary>
+        public long timestamp = 0;
     }
 }

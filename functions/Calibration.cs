@@ -1,8 +1,6 @@
-﻿using GazeFirst;
-using Grpc.Core;
+﻿using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,9 +17,9 @@ namespace GazeFirst.functions
         private IAsyncStreamReader<CalibrationStatus> _responseStream;
         private IClientStreamWriter<CalibrationControl> _requestStream;
         private int _calibrationTimeoutInMinutes;
-        private event Action<(NormedPoint2d target, CalibrationPointState state, int seq)> calibPoint;
-        private event Action<bool, List<int>, int, bool> calibResult;
-        
+        private event Action<CalibrationPointUpdateArgs> calibPoint;
+        private event Action<CalibrationFinishedArgs> calibResult;
+
         /// <summary>
         /// Create a new Calibration
         /// </summary>
@@ -43,7 +41,7 @@ namespace GazeFirst.functions
         /// <param name="multipoint"></param>
         /// <param name="record"></param>
         /// <returns></returns>
-        public async Task StartCalibrationAsync(EventHandler<CalibrationPointUpdateArgs> calibPointUpdate, EventHandler<CalibrationFinishedArgs> calibFinished, ScreenDimensions dimensions, CalibrationPoints points = CalibrationPoints.Nine, bool fixationBased = false, bool multipoint = false, bool record = false)
+        public async Task StartCalibrationAsync(EventHandler<CalibrationPointUpdateArgs> calibPointUpdate, EventHandler<CalibrationFinishedArgs> calibFinished, ScreenDimensions dimensions, CalibrationPoints points = CalibrationPoints.Nine, bool fixationBased = false, bool multipoint = false, bool record = false, bool manualCalibration = false)
         {
             eyetuitive._logger?.LogDebug("Starting calibration");
 
@@ -53,25 +51,14 @@ namespace GazeFirst.functions
 
             calibPoint += (point) =>
             {
-                eyetuitive._logger?.LogDebug("Calibration point update: {0}", point.seq);
-                calibPointUpdate?.Invoke(this, new CalibrationPointUpdateArgs
-                {
-                    sequenceNumber = point.seq,
-                    target = point.target,
-                    state = point.state
-                });
+                eyetuitive._logger?.LogDebug("Calibration point update: {0}", point.sequenceNumber);
+                calibPointUpdate?.Invoke(this, point);
             };
 
-            calibResult += (success, perPoint, overall, canImprove) =>
+            calibResult += (args) =>
             {
-                eyetuitive._logger?.LogDebug("Calibration finished: {0}", success);
-                calibFinished?.Invoke(this, new CalibrationFinishedArgs
-                {
-                    success = success,
-                    percentageRatingPerPoint = perPoint.ToArray(),
-                    percentageRatingOverall = overall,
-                    canImprove = canImprove
-                });
+                eyetuitive._logger?.LogDebug("Calibration finished: {0}", args.success);
+                calibFinished?.Invoke(this, args);
             };
 
             AsyncDuplexStreamingCall<CalibrationControl, CalibrationStatus> cal = _client.Calibrate(cancellationToken: new CancellationTokenSource(TimeSpan.FromMinutes(5)).Token);
@@ -88,7 +75,9 @@ namespace GazeFirst.functions
                     HeightMm = dimensions.Height
                 },
                 FixationBased = fixationBased,
-                Multipoint = multipoint,            
+                Multipoint = multipoint,
+                ManualCalibration = manualCalibration,
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             });
 
             // Start the calibration task and add it to task
@@ -122,6 +111,36 @@ namespace GazeFirst.functions
         }
 
         /// <summary>
+        /// Confirm calibration point
+        /// </summary>
+        public void ConfirmPoint()
+        {
+            _ = WriteRequest(new CalibrationControl
+            {
+                Control = CalibrationControl.Types.Control.Confirm
+            });
+        }
+
+        /// <summary>
+        /// Get the last calibration result
+        /// </summary>
+        /// <returns></returns>
+        public CalibrationFinishedArgs GetLastCalibrationFinishedArgs()
+        {
+            try
+            {
+                var res = _client.GetLastCalibrationResult(new Google.Protobuf.WellKnownTypes.Empty());
+                if (res == null) return null;
+                return CreateCalibrationFinishedArgs(res, true);
+            }
+            catch (Exception e)
+            {
+                eyetuitive._logger?.LogError(e, "GetLastCalibrationResult failed");
+            }
+            return new CalibrationFinishedArgs();
+        }
+
+        /// <summary>
         /// Run calibration response stream and invoke events
         /// </summary>
         /// <param name="cancellationToken"></param>
@@ -140,17 +159,20 @@ namespace GazeFirst.functions
                         {
                             if (calib.CalibrationResult != null)
                             {
-                                List<int> perPoint = calib.CalibrationResult.PercentageRatings.ToList();
-                                int total = calib.CalibrationResult.OverallPercentageRating;
-                                calibResult?.Invoke(calib.Status == CalibrationStatus.Types.Status.Succeeded, perPoint, total, calib.CalibrationResult.CanImprove);
+                                bool isSuccess = calib.Status == CalibrationStatus.Types.Status.Succeeded;
+                                CalibrationFinishedArgs res = CreateCalibrationFinishedArgs(calib.CalibrationResult, isSuccess);
+                                calibResult?.Invoke(res);
                             }
                         }
                         else
                         {
-                            NormedPoint2d calibP = new NormedPoint2d(calib.CalibrationPoint.Position.X, calib.CalibrationPoint.Position.Y);
-                            CalibrationPointState state = (CalibrationPointState)(int)calib.CalibrationPoint.State;
-                            int seq = calib.CalibrationPoint.Sequence;
-                            calibPoint?.Invoke((calibP, state, seq));
+                            var p = calib.CalibrationPoint.Position;
+                            calibPoint?.Invoke(new CalibrationPointUpdateArgs
+                            {
+                                sequenceNumber = calib.CalibrationPoint.Sequence,
+                                target = new NormedPoint2d(p.X, p.Y),
+                                state = (CalibrationPointState)(int)calib.CalibrationPoint.State
+                            });
                         }
                     }
                 }
@@ -161,6 +183,28 @@ namespace GazeFirst.functions
             {
                 eyetuitive._logger?.LogError(e, "Request stream in Calib failed");
             }
+        }
+
+        /// <summary>
+        /// Helper function to create CalibrationFinishedArgs
+        /// </summary>
+        /// <param name="result"></param>
+        /// <param name="success"></param>
+        /// <returns></returns>
+        private static CalibrationFinishedArgs CreateCalibrationFinishedArgs(CalibrationResult result, bool success)
+        {
+            var res = new CalibrationFinishedArgs
+            {
+                success = success,
+                percentageRatingPerPoint = result.PercentageRatings.ToArray(),
+                percentageRatingPerPointLeft = result.PercentageRatingsLeft.ToArray(),
+                percentageRatingPerPointRight = result.PercentageRatingsRight.ToArray(),
+                percentageRatingOverall = result.OverallPercentageRating,
+                canImprove = result.CanImprove,
+                calibrationId = new Guid(result.Uid.ToArray()),
+                timestamp = result.Timestamp,
+            };
+            return res;
         }
 
         /// <summary>

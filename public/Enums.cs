@@ -21,4 +21,13 @@
         Thirteen = 3,
         Zero = 4 //Zero basically resets to a default calibration (only use this if user can not focus calibration points)
     }
+
+    /// <summary>
+    /// Frame rate
+    /// </summary>
+    public enum FrameRate
+    {
+        FPS30 = 0,
+        FPS60 = 1,
+    }
 }

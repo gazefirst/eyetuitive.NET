@@ -1,4 +1,4 @@
-(c) 2023 - 2024 GazeFirst GmbH.
+(c) 2023 - 2025 GazeFirst GmbH.
 
 Subject to your compliance with these terms, you may use the GazeFirst GmbH software and any derivatives exclusively with GazeFirst GmbH products. 
 It is your responsibility to comply with third party license terms applicable to your use of third party software (including open source software) that may accompany GazeFirst GmbH Software.

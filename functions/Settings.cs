@@ -18,6 +18,53 @@ namespace GazeFirst.functions
         internal Settings(Eyetracker.EyetrackerClient _client) : base(_client) { }
 
         /// <summary>
+        /// Get current user settings
+        /// </summary>
+        /// <returns></returns>
+        public UserSettingsArgs GetCurrentUsersSettings()
+        {
+            try
+            {
+                _settings = _client.Configure(new Configuration() { Empty = new Google.Protobuf.WellKnownTypes.Empty() }); //Get current settings
+                return new UserSettingsArgs()
+                {
+                    Smoothing = _settings.UserSettings.Smoothing,
+                    LeftEyeOnly = _settings.UserSettings.LeftEyeOnly,
+                    RightEyeOnly = _settings.UserSettings.RightEyeOnly
+                };
+            }
+            catch (Exception ex)
+            {
+                eyetuitive._logger?.LogError(ex, "Failed to get current user settings");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Get current device settings
+        /// </summary>
+        /// <returns></returns>
+        public DeviceSettingsArgs GetCurrentDeviceSettings()
+        {
+            try
+            {
+                _settings = _client.Configure(new Configuration() { Empty = new Google.Protobuf.WellKnownTypes.Empty() }); //Get current settings
+                return new DeviceSettingsArgs()
+                {
+                    pauseNative = _settings.DeviceSettings.PauseNative,
+                    pauseAPIGaze = _settings.DeviceSettings.PauseAPIGaze,
+                    enablePauseByGaze = _settings.DeviceSettings.EnablePauseByGaze,
+                    Framerate = (FrameRate)((int)_settings.DeviceSettings.Framerate)
+                };
+            }
+            catch (Exception ex)
+            {
+                eyetuitive._logger?.LogError(ex, "Failed to get current device settings");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Return device info (serial number, firmware version, hardware config)
         /// Note: this is mostly for internal purposes
         /// </summary>
@@ -123,6 +170,35 @@ namespace GazeFirst.functions
             catch (Exception ex)
             {
                 eyetuitive._logger?.LogError(ex, "Failed to update pause API");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Set frame rate
+        /// </summary>
+        /// <param name="frameRate"></param>
+        /// <returns></returns>
+        public bool setFrameRate(FrameRate frameRate)
+        {
+            try
+            {
+                _settings = _client.Configure(new Configuration() { Empty = new Google.Protobuf.WellKnownTypes.Empty() }); //Get current settings
+                _settings.DeviceSettings.Framerate = (DeviceSettings.Types.Framerate)((int)frameRate);
+                _settings.DeviceSettings.Update = true;
+                Configuration configuration = new Configuration()
+                {
+                    Settings = new GazeFirst.Settings()
+                    {
+                        DeviceSettings = _settings.DeviceSettings
+                    }
+                };
+                _settings = _client.Configure(configuration); //Update settings
+                return true;
+            }
+            catch (Exception ex)
+            {
+                eyetuitive._logger?.LogError(ex, "Failed to update frame rate");
                 return false;
             }
         }
