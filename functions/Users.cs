@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using eyetuitive.NET.classes;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -233,7 +234,7 @@ namespace GazeFirst.functions
                 UserName = response.Username,
                 UserID = response.UserID,
                 Active = active,
-                UserGuid = new Guid(response.Uid.ToArray())
+                UserGuid = Helper.FromByteString(response.Uid)
             };
         }
     }

@@ -1,4 +1,5 @@
-﻿using Grpc.Core;
+﻿using eyetuitive.NET.classes;
+using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
@@ -201,7 +202,7 @@ namespace GazeFirst.functions
                 percentageRatingPerPointRight = result.PercentageRatingsRight.ToArray(),
                 percentageRatingOverall = result.OverallPercentageRating,
                 canImprove = result.CanImprove,
-                calibrationId = new Guid(result.Uid.ToArray()),
+                calibrationId = Helper.FromByteString(result.Uid),
                 timestamp = result.Timestamp,
             };
             return res;
