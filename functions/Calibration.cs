@@ -21,6 +21,9 @@ namespace GazeFirst.functions
         private event Action<CalibrationPointUpdateArgs> calibPoint;
         private event Action<CalibrationFinishedArgs> calibResult;
 
+        private Action<CalibrationPointUpdateArgs> _currentCalibPointHandler;
+        private Action<CalibrationFinishedArgs> _currentCalibResultHandler;
+
         /// <summary>
         /// Create a new Calibration
         /// </summary>
@@ -46,21 +49,32 @@ namespace GazeFirst.functions
         {
             eyetuitive._logger?.LogDebug("Starting calibration");
 
-            calibrationCts.CancelAfter(TimeSpan.FromMinutes(_calibrationTimeoutInMinutes));
+            // Check if already running
+            if (_calibrationTask != null && !_calibrationTask.IsCompleted)
+            {
+                eyetuitive._logger?.LogWarning("Calibration already running, stopping previous calibration");
+                StopCalibration();
+            }
+
+            calibrationCts = new CancellationTokenSource(TimeSpan.FromMinutes(_calibrationTimeoutInMinutes));
+
             // Create a TaskCompletionSource to provide user input
             var userInputTcs = new TaskCompletionSource<CalibrationControl>();
 
-            calibPoint += (point) =>
+            _currentCalibPointHandler = (point) =>
             {
                 eyetuitive._logger?.LogDebug("Calibration point update: {0}", point.sequenceNumber);
                 calibPointUpdate?.Invoke(this, point);
             };
 
-            calibResult += (args) =>
+            _currentCalibResultHandler = (args) =>
             {
                 eyetuitive._logger?.LogDebug("Calibration finished: {0}", args.success);
                 calibFinished?.Invoke(this, args);
             };
+
+            calibPoint += _currentCalibPointHandler;
+            calibResult += _currentCalibResultHandler;
 
             AsyncDuplexStreamingCall<CalibrationControl, CalibrationStatus> cal = _client.Calibrate(cancellationToken: new CancellationTokenSource(TimeSpan.FromMinutes(5)).Token);
             _requestStream = cal.RequestStream;
@@ -95,6 +109,25 @@ namespace GazeFirst.functions
                 Control = CalibrationControl.Types.Control.Stop
             });
             calibrationCts.Cancel();
+            calibResult?.Invoke(new CalibrationFinishedArgs());
+        }
+
+        /// <summary>
+        /// Clean up event subscriptions to prevent multiple handlers
+        /// </summary>
+        private void CleanupEventHandlers()
+        {
+            if (_currentCalibPointHandler != null)
+            {
+                calibPoint -= _currentCalibPointHandler;
+                _currentCalibPointHandler = null;
+            }
+
+            if (_currentCalibResultHandler != null)
+            {
+                calibResult -= _currentCalibResultHandler;
+                _currentCalibResultHandler = null;
+            }
         }
 
         /// <summary>
@@ -184,6 +217,10 @@ namespace GazeFirst.functions
             {
                 eyetuitive._logger?.LogError(e, "Request stream in Calib failed");
             }
+            finally
+            {
+                CleanupEventHandlers();
+            }
         }
 
         /// <summary>
@@ -223,6 +260,14 @@ namespace GazeFirst.functions
             {
                 eyetuitive._logger?.LogError(e, "WriteRequest in Calib failed");
             }
+        }
+
+        /// <summary>
+        /// Dispose
+        /// </summary>
+        public void Dispose()
+        {
+            StopCalibration();
         }
     }
 }
