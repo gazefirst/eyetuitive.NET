@@ -94,7 +94,8 @@ namespace GazeFirst.functions
                     }
                 }
             }
-            catch (TaskCanceledException) { } //task cancelled
+            catch (TaskCanceledException) { } //calibration cancelled
+            catch (OperationCanceledException) { } //stream cancelled
             catch (InvalidOperationException) { } //stream already finished / is closed...
             catch (Exception e)
             {

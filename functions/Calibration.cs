@@ -80,6 +80,9 @@ namespace GazeFirst.functions
             _requestStream = cal.RequestStream;
             _responseStream = cal.ResponseStream;
 
+            // Start the calibration task and add it to task
+            _calibrationTask = Task.Run(() => RunCalibration(calibrationCts.Token), calibrationCts.Token);
+
             await WriteRequest(new CalibrationControl
             {
                 Control = CalibrationControl.Types.Control.Start,
@@ -94,9 +97,6 @@ namespace GazeFirst.functions
                 ManualCalibration = manualCalibration,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             });
-
-            // Start the calibration task and add it to task
-            _calibrationTask = Task.Run(() => RunCalibration(calibrationCts.Token), calibrationCts.Token);
         }
 
         /// <summary>
@@ -109,7 +109,6 @@ namespace GazeFirst.functions
                 Control = CalibrationControl.Types.Control.Stop
             });
             calibrationCts.Cancel();
-            calibResult?.Invoke(new CalibrationFinishedArgs());
         }
 
         /// <summary>
@@ -140,7 +139,8 @@ namespace GazeFirst.functions
             _ = WriteRequest(new CalibrationControl
             {
                 Control = CalibrationControl.Types.Control.Improve,
-                PointsToImprove = { points }
+                PointsToImprove = { points },
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
             });
         }
 
@@ -212,10 +212,11 @@ namespace GazeFirst.functions
                 }
             }
             catch (TaskCanceledException) { } //calibration cancelled
+            catch (OperationCanceledException) { } //stream cancelled
             catch (InvalidOperationException) { } //stream already finished / is closed...
             catch (Exception e)
             {
-                eyetuitive._logger?.LogError(e, "Request stream in Calib failed");
+                eyetuitive._logger?.LogError(e, "Response stream error in RunCalibration");
             }
             finally
             {
@@ -256,6 +257,9 @@ namespace GazeFirst.functions
             {
                 if (_requestStream != null) await _requestStream.WriteAsync(message);
             }
+            catch (TaskCanceledException) { } //calibration cancelled
+            catch (OperationCanceledException) { } //stream cancelled
+            catch (InvalidOperationException) { } //stream already finished / is closed...
             catch (Exception e)
             {
                 eyetuitive._logger?.LogError(e, "WriteRequest in Calib failed");
