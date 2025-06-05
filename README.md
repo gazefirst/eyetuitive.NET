@@ -21,7 +21,7 @@ Use this repo / its published nuget package to integrate eyetuitive in your next
 
 ## Connection
 
-You can connect to eyetuitive via gRPC. 
+You can connect to eyetuitive via gRPC. Since the transport is based on HTTP/2, you need support for that. Also, ensure you can access the device via the network. The service runs on host eyetracker.local, port 12340.
 
 ## Note on legacy .NET versions
 
@@ -62,8 +62,8 @@ private void gazeHandler(object sender, GazeEventArgs e)
 /// <param name="e"></param>
 private void posHandler(object sender, PositionEventArgs e)
 {
-	NormedPoint2d leftEyePosition = e.rightEyePos; //Normed as 0-1d - multiply with screen resolution if needed
-	NormedPoint2d rightEyePosition = e.leftEyePos; //Normed as 0-1d - multiply with screen resolution if needed
+	NormedPoint2d leftEyePosition = e.leftEyePos; //Normed as 0-1d - multiply with screen resolution if needed
+	NormedPoint2d rightEyePosition = e.rightEyePos; //Normed as 0-1d - multiply with screen resolution if needed
 }
 ```
 

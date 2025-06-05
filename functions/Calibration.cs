@@ -47,19 +47,18 @@ namespace GazeFirst.functions
         /// <returns></returns>
         public async Task StartCalibrationAsync(EventHandler<CalibrationPointUpdateArgs> calibPointUpdate, EventHandler<CalibrationFinishedArgs> calibFinished, ScreenDimensions dimensions, CalibrationPoints points = CalibrationPoints.Nine, bool fixationBased = false, bool multipoint = false, bool record = false, bool manualCalibration = false)
         {
-            eyetuitive._logger?.LogDebug("Starting calibration");
+            eyetuitive._logger?.LogDebug("Called StartCalibrationAsync");
 
             // Check if already running
             if (_calibrationTask != null && !_calibrationTask.IsCompleted)
             {
-                eyetuitive._logger?.LogWarning("Calibration already running, stopping previous calibration");
-                StopCalibration();
+                eyetuitive._logger?.LogWarning("Calibration already running, will cancel previous calibration");
+                SendStop();
+                await _calibrationTask; // Wait for the previous task to complete
+                eyetuitive._logger?.LogDebug("Awaited _calibrationTask");
             }
 
             calibrationCts = new CancellationTokenSource(TimeSpan.FromMinutes(_calibrationTimeoutInMinutes));
-
-            // Create a TaskCompletionSource to provide user input
-            var userInputTcs = new TaskCompletionSource<CalibrationControl>();
 
             _currentCalibPointHandler = (point) =>
             {
@@ -81,8 +80,8 @@ namespace GazeFirst.functions
             _responseStream = cal.ResponseStream;
 
             // Start the calibration task and add it to task
-            _calibrationTask = Task.Run(() => RunCalibration(calibrationCts.Token), calibrationCts.Token);
-
+            _calibrationTask = RunCalibration(calibrationCts.Token);
+            
             await WriteRequest(new CalibrationControl
             {
                 Control = CalibrationControl.Types.Control.Start,
@@ -104,6 +103,15 @@ namespace GazeFirst.functions
         /// </summary>
         public void StopCalibration()
         {
+            SendStop();
+            calibResult?.Invoke(new CalibrationFinishedArgs());
+        }
+
+        /// <summary>
+        /// Send stop request to the server and cancel the calibration task
+        /// </summary>
+        private void SendStop()
+        {
             _ = WriteRequest(new CalibrationControl
             {
                 Control = CalibrationControl.Types.Control.Stop
@@ -118,12 +126,16 @@ namespace GazeFirst.functions
         {
             if (_currentCalibPointHandler != null)
             {
+                //log
+                eyetuitive._logger?.LogDebug("Cleaning up calibration point handler");
                 calibPoint -= _currentCalibPointHandler;
                 _currentCalibPointHandler = null;
             }
 
             if (_currentCalibResultHandler != null)
             {
+                //log
+                eyetuitive._logger?.LogDebug("Cleaning up calibration result handler");
                 calibResult -= _currentCalibResultHandler;
                 _currentCalibResultHandler = null;
             }
@@ -179,7 +191,7 @@ namespace GazeFirst.functions
         /// </summary>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        private async ValueTask RunCalibration(CancellationToken cancellationToken)
+        private async Task RunCalibration(CancellationToken cancellationToken)
         {
             try
             {
@@ -213,10 +225,20 @@ namespace GazeFirst.functions
             }
             catch (TaskCanceledException) { } //calibration cancelled
             catch (OperationCanceledException) { } //stream cancelled
-            catch (InvalidOperationException) { } //stream already finished / is closed...
+            catch (InvalidOperationException) { } //stream already finished / is closed...            
             catch (Exception e)
             {
-                eyetuitive._logger?.LogError(e, "Response stream error in RunCalibration");
+                if(e is Grpc.Core.RpcException rpcEx)
+                {
+                    if (rpcEx.StatusCode == Grpc.Core.StatusCode.Cancelled)
+                        eyetuitive._logger?.LogDebug("Calibration stream cancelled");
+                    else if (rpcEx.StatusCode == Grpc.Core.StatusCode.Unavailable)
+                        eyetuitive._logger?.LogWarning("Calibration stream unavailable / device disconnected");
+                    else
+                        eyetuitive._logger?.LogError(e, "Calibration stream error");
+                }
+                else
+                    eyetuitive._logger?.LogError(e, "Response stream error in RunCalibration");
             }
             finally
             {
@@ -262,7 +284,17 @@ namespace GazeFirst.functions
             catch (InvalidOperationException) { } //stream already finished / is closed...
             catch (Exception e)
             {
-                eyetuitive._logger?.LogError(e, "WriteRequest in Calib failed");
+                if (e is Grpc.Core.RpcException rpcEx)
+                {
+                    if (rpcEx.StatusCode == Grpc.Core.StatusCode.Cancelled)
+                        eyetuitive._logger?.LogDebug("Calibration stream cancelled");
+                    else if (rpcEx.StatusCode == Grpc.Core.StatusCode.Unavailable)
+                        eyetuitive._logger?.LogWarning("Calibration stream unavailable / device disconnected");
+                    else
+                        eyetuitive._logger?.LogError(e, "Calibration stream error");
+                }
+                else
+                    eyetuitive._logger?.LogError(e, "WriteRequest in Calib failed");
             }
         }
 

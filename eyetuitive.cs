@@ -1,4 +1,5 @@
-﻿using GazeFirst.functions;
+﻿using eyetuitive.NET.classes;
+using GazeFirst.functions;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
@@ -23,7 +24,7 @@ namespace GazeFirst
         private EyetrackerClient _client;
         private CancellationTokenSource _connectionCts = new CancellationTokenSource();
         private readonly object _connectionLock = new object();
-        private bool _isConnecting = false, _isConnected = false;
+        private bool _isConnecting = false, _isConnected = false, _monitoring = false;
         private Task<bool> _connectionTask;
 
         //Internal functions
@@ -52,6 +53,7 @@ namespace GazeFirst
         /// </summary>
         private void Reconnect()
         {
+            _logger?.LogInformation("Reconnecting to the eye tracker...");
             position?.UpdateClient(Client);
             calibration?.UpdateClient(Client);
             gaze?.UpdateClient(Client);
@@ -176,6 +178,15 @@ namespace GazeFirst
         }
 
         /// <summary>
+        /// Check if an eye tracker is available (only on Windows)
+        /// </summary>
+        /// <returns></returns>
+        public static bool IsAvailable()
+        {
+            return UsbDeviceMonitor.CheckConnect();
+        }
+
+        /// <summary>
         /// Internal connect method, handles retries
         /// </summary>
         /// <param name="timeoutInSeconds"></param>
@@ -184,6 +195,9 @@ namespace GazeFirst
         {
             _connectionCts?.Dispose();
             _connectionCts = new CancellationTokenSource();
+
+            _channel = GrpcChannel.ForAddress($"http://{_host}:{_port}");
+            _client = new EyetrackerClient(_channel);
 
             var policy = Policy.Handle<Exception>().WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
 
@@ -194,11 +208,9 @@ namespace GazeFirst
                     try
                     {
 #if NET6_0_OR_GREATER
-                        _channel = GrpcChannel.ForAddress($"http://{_host}:{_port}");
-                        _client = new EyetrackerClient(_channel);
-                        await _channel.ConnectAsync(CancellationTokenSource.CreateLinkedTokenSource(_connectionCts.Token, new CancellationTokenSource(TimeSpan.FromSeconds(timeoutInSeconds)).Token).Token);
+                        var token = CancellationTokenSource.CreateLinkedTokenSource(_connectionCts.Token, new CancellationTokenSource(TimeSpan.FromSeconds(timeoutInSeconds)).Token).Token;
+                        await _channel.ConnectAsync(token);
                         MonitorConnection();
-
                         return true;
 #else
                         var httpClientHandler = new System.Net.Http.WinHttpHandler()
@@ -213,6 +225,7 @@ namespace GazeFirst
                         });
                         _client = new EyetrackerClient(_channel);
                         var info = await _client.GetDeviceInfoAsync(new Empty());
+                        MonitorConnection();
                         return (info.Serial != 0);
 #endif
                     }
@@ -237,38 +250,29 @@ namespace GazeFirst
         /// </summary>
         private void MonitorConnection()
         {
-#if NET6_0_OR_GREATER
-            Task.Run(async () =>
+            if (_monitoring) return;
+            UsbDeviceMonitor.ConnectedChanged += OnConnectedChanged;
+            _monitoring = true;
+        }
+
+        /// <summary>
+        /// Handle USB device connection changes
+        /// </summary>
+        /// <param name="isConnected"></param>
+        private async void OnConnectedChanged(bool isConnected)
+        {
+            _logger?.LogInformation($"USB device connection status changed: {isConnected}");
+            if (isConnected)
             {
-                try
-                {
-                    while (!_connectionCts.Token.IsCancellationRequested)
-                    {
-                        if (_channel == null) return;
-                        var currentState = _channel.State;
-                        await _channel.WaitForStateChangedAsync(currentState, _connectionCts.Token);
-                        // Trigger events or handle state change
-                        if (_channel.State == Grpc.Core.ConnectivityState.Ready)
-                        {
-                            _isConnected = true;
-                            //reconnect();
-                        }
-                        else
-                        {
-                            _isConnected = false;
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // Handle cancellation
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError(ex, "Error while monitoring connection");
-                }
-            }, _connectionCts.Token);
+                _client = new EyetrackerClient(_channel);
+#if NET6_0_OR_GREATER
+                await _channel.ConnectAsync();
+                Reconnect();
+#else
+                var info = await _client.GetDeviceInfoAsync(new Empty());
+                if(info.Serial != 0) Reconnect();
 #endif
+            }
         }
 
         /// <summary>

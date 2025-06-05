@@ -113,7 +113,17 @@ namespace GazeFirst.functions
             catch (InvalidOperationException) { } //stream already finished / is closed...
             catch (Exception e)
             {
-                eyetuitive._logger?.LogError(e, "Stream in gaze failed");
+                if (e is Grpc.Core.RpcException rpcEx)
+                {
+                    if (rpcEx.StatusCode == Grpc.Core.StatusCode.Cancelled)
+                        eyetuitive._logger?.LogDebug("Gaze stream cancelled");
+                    else if (rpcEx.StatusCode == Grpc.Core.StatusCode.Unavailable)
+                        eyetuitive._logger?.LogWarning("Gaze stream unavailable / device disconnected");
+                    else
+                        eyetuitive._logger?.LogError(e, "Gaze stream error");
+                }
+                else
+                    eyetuitive._logger?.LogError(e, "Stream in gaze failed");
             }
         }
 
