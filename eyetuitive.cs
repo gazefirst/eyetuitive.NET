@@ -187,6 +187,21 @@ namespace GazeFirst
         }
 
         /// <summary>
+        /// ConnectedChanged event (true if connected, false if disconnected)
+        /// </summary>
+        public event Action<bool> ConnectedChanged
+        {
+            add
+            {
+                UsbDeviceMonitor.ConnectedChanged += value;
+            }
+            remove
+            {
+                UsbDeviceMonitor.ConnectedChanged -= value;
+            }
+        }
+
+        /// <summary>
         /// Internal connect method, handles retries
         /// </summary>
         /// <param name="timeoutInSeconds"></param>
