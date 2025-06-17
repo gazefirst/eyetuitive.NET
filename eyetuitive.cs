@@ -266,6 +266,7 @@ namespace GazeFirst
         private void MonitorConnection()
         {
             if (_monitoring) return;
+            settings?.updateHostSettings();
             UsbDeviceMonitor.ConnectedChanged += OnConnectedChanged;
             _monitoring = true;
         }
@@ -283,9 +284,14 @@ namespace GazeFirst
 #if NET6_0_OR_GREATER
                 await _channel.ConnectAsync();
                 Reconnect();
+                settings?.updateHostSettings();
 #else
                 var info = await _client.GetDeviceInfoAsync(new Empty());
-                if(info.Serial != 0) Reconnect();
+                if(info.Serial != 0)
+                {
+                    Reconnect();
+                    settings?.updateHostSettings();
+                }
 #endif
             }
         }

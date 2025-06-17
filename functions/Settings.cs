@@ -1,4 +1,5 @@
-﻿using GazeFirst;
+﻿using eyetuitive.NET.classes;
+using GazeFirst;
 using Microsoft.Extensions.Logging;
 using System;
 
@@ -114,6 +115,37 @@ namespace GazeFirst.functions
                 return false;
             }
 
+        }
+
+        /// <summary>
+        /// Update host settings (manufacturer, model, platform) - values are taken from the current system
+        /// </summary>
+        /// <returns></returns>
+        public bool updateHostSettings()
+        {
+            try
+            {
+                _settings = _client.Configure(new Configuration() { Empty = new Google.Protobuf.WellKnownTypes.Empty() }); //Get current settings
+                _settings.HostSettings.Update = true;
+                var hostInfo = Helper.GetComputerVendorAndModel();
+                _settings.HostSettings.Manufacturer = hostInfo.Manufacturer;
+                _settings.HostSettings.Model = hostInfo.Model;
+                //_settings.HostSettings.Platform = ""; //ToDo: get this on different platforms
+                Configuration configuration = new Configuration()
+                {
+                    Settings = new GazeFirst.Settings()
+                    {
+                        HostSettings = _settings.HostSettings
+                    }
+                };
+                _settings = _client.Configure(configuration); //Update settings
+                return true;
+            }
+            catch (Exception ex)
+            {
+                eyetuitive._logger?.LogError(ex, "Failed to update host settings");
+                return false;
+            }
         }
 
         /// <summary>

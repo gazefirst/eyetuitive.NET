@@ -38,17 +38,7 @@ namespace eyetuitive.NET.classes
         static UsbDeviceMonitor()
         {
             // Start monitoring the USB devices for changes only if running on Windows platform
-            if (IsWindowsPlatform()) StartWatcher();
-        }
-
-        internal static bool IsWindowsPlatform()
-        {
-#if NET6_0_OR_GREATER
-            return RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-#else
-        // For .NET Framework, assume Windows
-        return Environment.OSVersion.Platform == PlatformID.Win32NT;
-#endif
+            if (Helper.IsWindowsPlatform()) StartWatcher();
         }
 
         /// <summary>
@@ -123,7 +113,7 @@ namespace eyetuitive.NET.classes
         /// </summary>
         private static bool isAvailable()
         {
-            if (!IsWindowsPlatform()) 
+            if (!Helper.IsWindowsPlatform()) 
                 throw new PlatformNotSupportedException("USB device monitoring is only supported on Windows platform.");
             try
             {
