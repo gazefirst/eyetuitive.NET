@@ -125,17 +125,17 @@ namespace GazeFirst.functions
         {
             try
             {
-                _settings = _client.Configure(new Configuration() { Empty = new Google.Protobuf.WellKnownTypes.Empty() }); //Get current settings
-                _settings.HostSettings.Update = true;
                 var hostInfo = Helper.GetComputerVendorAndModel();
-                _settings.HostSettings.Manufacturer = hostInfo.Manufacturer;
-                _settings.HostSettings.Model = hostInfo.Model;
-                //_settings.HostSettings.Platform = ""; //ToDo: get this on different platforms
                 Configuration configuration = new Configuration()
                 {
                     Settings = new GazeFirst.Settings()
                     {
-                        HostSettings = _settings.HostSettings
+                        HostSettings = new HostSettings()
+                        {
+                            Manufacturer = hostInfo.Manufacturer,
+                            Model = hostInfo.Model,
+                            //Platform = Helper.IsWindowsPlatform() ? "Windows" : "Unknown" //Assuming Windows for now, can be extended for other platforms
+                        }
                     }
                 };
                 _settings = _client.Configure(configuration); //Update settings
