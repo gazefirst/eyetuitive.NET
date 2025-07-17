@@ -1,4 +1,5 @@
 ﻿using eyetuitive.NET.classes;
+using Google.Protobuf.Collections;
 using Grpc.Core;
 using Microsoft.Extensions.Logging;
 using System;
@@ -44,8 +45,11 @@ namespace GazeFirst.functions
         /// <param name="fixationBased"></param>
         /// <param name="multipoint"></param>
         /// <param name="record"></param>
+        /// <param name="manualCalibration"></param>
+        /// <param name="ConfirmCollectionPoints"></param>
+        /// <param name="timeoutPerPoint"></param>
         /// <returns></returns>
-        public async Task StartCalibrationAsync(EventHandler<CalibrationPointUpdateArgs> calibPointUpdate, EventHandler<CalibrationFinishedArgs> calibFinished, ScreenDimensions dimensions, CalibrationPoints points = CalibrationPoints.Nine, bool fixationBased = false, bool multipoint = false, bool record = false, bool manualCalibration = false)
+        public async Task StartCalibrationAsync(EventHandler<CalibrationPointUpdateArgs> calibPointUpdate, EventHandler<CalibrationFinishedArgs> calibFinished, ScreenDimensions dimensions, CalibrationPoints points = CalibrationPoints.Nine, bool fixationBased = false, bool multipoint = false, bool record = false, bool manualCalibration = false, bool ConfirmCollectionPoints = false, int timeoutPerPoint = 0)
         {
             eyetuitive._logger?.LogDebug("Called StartCalibrationAsync");
 
@@ -81,7 +85,7 @@ namespace GazeFirst.functions
 
             // Start the calibration task and add it to task
             _calibrationTask = RunCalibration(calibrationCts.Token);
-            
+
             await WriteRequest(new CalibrationControl
             {
                 Control = CalibrationControl.Types.Control.Start,
@@ -95,6 +99,8 @@ namespace GazeFirst.functions
                 Multipoint = multipoint,
                 ManualCalibration = manualCalibration,
                 Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                ClientConfirmsPointCollection = ConfirmCollectionPoints,
+                PointTimeout = timeoutPerPoint > 0 ? timeoutPerPoint : 0 // Use provided timeout or default to 0
             });
         }
 
@@ -157,13 +163,25 @@ namespace GazeFirst.functions
         }
 
         /// <summary>
-        /// Confirm calibration point
+        /// Confirm calibration point - this used for manual calibration
         /// </summary>
         public void ConfirmPoint()
         {
             _ = WriteRequest(new CalibrationControl
             {
                 Control = CalibrationControl.Types.Control.Confirm
+            });
+        }
+
+        /// <summary>
+        /// Confirm collection point(s) - this is used for clientConfirmsPointCollection
+        /// </summary>
+        public void ConfirmCollectionPoints(int[] points)
+        {
+            _ = WriteRequest(new CalibrationControl
+            {
+                Control = CalibrationControl.Types.Control.Confirm,
+                PointsToConfirm = { points }
             });
         }
 
@@ -228,7 +246,7 @@ namespace GazeFirst.functions
             catch (InvalidOperationException) { } //stream already finished / is closed...            
             catch (Exception e)
             {
-                if(e is Grpc.Core.RpcException rpcEx)
+                if (e is Grpc.Core.RpcException rpcEx)
                 {
                     if (rpcEx.StatusCode == Grpc.Core.StatusCode.Cancelled)
                         eyetuitive._logger?.LogDebug("Calibration stream cancelled");
