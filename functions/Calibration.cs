@@ -114,6 +114,14 @@ namespace GazeFirst.functions
         }
 
         /// <summary>
+        /// Finish calibration process (only call when calibration is done and no improvement is needed)
+        /// </summary>
+        public void FinishCalibration()
+        {
+            calibrationCts?.Cancel(); //Closes the streams
+        }
+
+        /// <summary>
         /// Send stop request to the server and cancel the calibration task
         /// </summary>
         private void SendStop()
@@ -178,6 +186,7 @@ namespace GazeFirst.functions
         /// </summary>
         public void ConfirmCollectionPoints(int[] points)
         {
+            if (points.Length == 0) return;
             _ = WriteRequest(new CalibrationControl
             {
                 Control = CalibrationControl.Types.Control.Confirm,
