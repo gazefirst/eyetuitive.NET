@@ -71,45 +71,68 @@ namespace GazeFirst.functions
         public async Task StreamAsync(CancellationToken cancellationToken)
         {
             taskRunning = true;
+            TimeSpan backoff = TimeSpan.FromMilliseconds(250);
+            const int backoffMaxMs = 5000;
             try
             {
-                var videoStream = _client.SubscribeRawVideo(new Google.Protobuf.WellKnownTypes.Empty());
-                while (await videoStream.ResponseStream.MoveNext(cancellationToken))
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    if (videoStream.ResponseStream.Current != null)
+                    try
                     {
-                        var Frame = videoStream.ResponseStream.Current;
-
-                        byte[] frameBytes = Frame.Data.ToByteArray();
-                        var frameArgs = new FrameArgs()
+                        var videoStream = _client.SubscribeRawVideo(new Google.Protobuf.WellKnownTypes.Empty());
+                        while (await videoStream.ResponseStream.MoveNext(cancellationToken))
                         {
-                            channels = Frame.Channels,
-                            height = Frame.Height,
-                            width = Frame.Width,
-                            data = frameBytes,
-                            timestamp = Frame.Timestamp,
-                        };
+                            if (videoStream.ResponseStream.Current != null)
+                            {
+                                var Frame = videoStream.ResponseStream.Current;
 
-                        videoDataAvailable?.Invoke(this, frameArgs);
+                                byte[] frameBytes = Frame.Data.ToByteArray();
+                                var frameArgs = new FrameArgs()
+                                {
+                                    channels = Frame.Channels,
+                                    height = Frame.Height,
+                                    width = Frame.Width,
+                                    data = frameBytes,
+                                    timestamp = Frame.Timestamp,
+                                };
+
+                                videoDataAvailable?.Invoke(this, frameArgs);
+                            }
+                        }
+                        // Stream finished normally: short delay and resubscribe
+                        await Task.Delay(backoff, cancellationToken);
+                    }
+                    catch (TaskCanceledException) { break; } // cancelled
+                    catch (OperationCanceledException) { break; } // cancelled
+                    catch (InvalidOperationException)
+                    {
+                        await Task.Delay(backoff, cancellationToken);
+                    }
+                    catch (Exception e)
+                    {
+                        if (e is Grpc.Core.RpcException rpcEx)
+                        {
+                            if (rpcEx.StatusCode == Grpc.Core.StatusCode.Cancelled)
+                            {
+                                eyetuitive._logger?.LogDebug("Video stream cancelled");
+                                break;
+                            }
+                            else if (rpcEx.StatusCode == Grpc.Core.StatusCode.Unavailable ||
+                                     rpcEx.StatusCode == Grpc.Core.StatusCode.Internal ||
+                                     rpcEx.StatusCode == Grpc.Core.StatusCode.DeadlineExceeded)
+                            {
+                                eyetuitive._logger?.LogWarning("Video stream unavailable, retrying...");
+                            }
+                            else
+                                eyetuitive._logger?.LogError(e, "Video stream error");
+                        }
+                        else
+                            eyetuitive._logger?.LogError(e, "StreamAsync failed, retrying...");
+
+                        backoff = TimeSpan.FromMilliseconds(Math.Min(backoff.TotalMilliseconds * 2, backoffMaxMs));
+                        try { await Task.Delay(backoff, cancellationToken); } catch { break; }
                     }
                 }
-            }
-            catch (TaskCanceledException) { } //calibration cancelled
-            catch (OperationCanceledException) { } //stream cancelled
-            catch (InvalidOperationException) { } //stream already finished / is closed...
-            catch (Exception e)
-            {
-                if (e is Grpc.Core.RpcException rpcEx)
-                {
-                    if (rpcEx.StatusCode == Grpc.Core.StatusCode.Cancelled)
-                        eyetuitive._logger?.LogDebug("Video stream cancelled");
-                    else if (rpcEx.StatusCode == Grpc.Core.StatusCode.Unavailable)
-                        eyetuitive._logger?.LogWarning("Video stream unavailable / device disconnected");
-                    else
-                        eyetuitive._logger?.LogError(e, "Video stream error");
-                }
-                else
-                    eyetuitive._logger?.LogError(e, "StreamAsync failed");
             }
             finally
             {

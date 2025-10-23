@@ -85,45 +85,69 @@ namespace GazeFirst.functions
         /// <returns></returns>
         private async Task GetGazeAsync(bool filtered, EventHandler<GazeEventArgs> GazeChangedHandler, CancellationToken cancellationToken)
         {
-            try
+            TimeSpan backoff = TimeSpan.FromMilliseconds(250);
+            const int backoffMaxMs = 5000;
+            while (!cancellationToken.IsCancellationRequested)
             {
-                var gazeStream = _client.SubscribeGaze(new GazeSubscription() { Unfiltered = !filtered });
-                while (await gazeStream.ResponseStream.MoveNext(cancellationToken))
+                try
                 {
-                    if (gazeStream.ResponseStream.Current != null)
+                    var gazeStream = _client.SubscribeGaze(new GazeSubscription() { Unfiltered = !filtered });
+                    while (await gazeStream.ResponseStream.MoveNext(cancellationToken))
                     {
-                        var gaze = gazeStream.ResponseStream.Current;
-                        var GazeData = new GazeEventArgs()
+                        if (gazeStream.ResponseStream.Current != null)
                         {
-                            gazePoint = new NormedPoint2d(gaze.GazePoint.X, gaze.GazePoint.Y),
-                            leftEye = new NormedPoint2d(gaze.LeftEye.X, gaze.LeftEye.Y),
-                            rightEye = new NormedPoint2d(gaze.RightEye.X, gaze.RightEye.Y),
-                            leftEyeOpen = gaze.LeftEyeOpen,
-                            rightEyeOpen = gaze.RightEyeOpen,
-                            timestamp = gaze.Timestamp,
-                            userPresent = gaze.UserPresent,
-                            fixation = gaze.Fixation,
-                        };
-                        GazeChangedHandler?.Invoke(this, GazeData);
+                            var gaze = gazeStream.ResponseStream.Current;
+                            var GazeData = new GazeEventArgs()
+                            {
+                                gazePoint = new NormedPoint2d(gaze.GazePoint.X, gaze.GazePoint.Y),
+                                leftEye = new NormedPoint2d(gaze.LeftEye.X, gaze.LeftEye.Y),
+                                rightEye = new NormedPoint2d(gaze.RightEye.X, gaze.RightEye.Y),
+                                leftEyeOpen = gaze.LeftEyeOpen,
+                                rightEyeOpen = gaze.RightEyeOpen,
+                                timestamp = gaze.Timestamp,
+                                userPresent = gaze.UserPresent,
+                                fixation = gaze.Fixation,
+                            };
+                            GazeChangedHandler?.Invoke(this, GazeData);
+                        }
                     }
+                    // Stream finished normally: short delay and resubscribe
+                    await Task.Delay(backoff, cancellationToken);
                 }
-
-            }
-            catch (TaskCanceledException) { } //task cancelled
-            catch (InvalidOperationException) { } //stream already finished / is closed...
-            catch (Exception e)
-            {
-                if (e is Grpc.Core.RpcException rpcEx)
+                catch (TaskCanceledException) { break; } // task cancelled
+                catch (InvalidOperationException)
                 {
-                    if (rpcEx.StatusCode == Grpc.Core.StatusCode.Cancelled)
-                        eyetuitive._logger?.LogDebug("Gaze stream cancelled");
-                    else if (rpcEx.StatusCode == Grpc.Core.StatusCode.Unavailable)
-                        eyetuitive._logger?.LogWarning("Gaze stream unavailable / device disconnected");
-                    else
-                        eyetuitive._logger?.LogError(e, "Gaze stream error");
+                    // stream finished/closed, retry after delay
+                    await Task.Delay(backoff, cancellationToken);
                 }
-                else
-                    eyetuitive._logger?.LogError(e, "Stream in gaze failed");
+                catch (Exception e)
+                {
+                    if (e is Grpc.Core.RpcException rpcEx)
+                    {
+                        if (rpcEx.StatusCode == Grpc.Core.StatusCode.Cancelled)
+                        {
+                            eyetuitive._logger?.LogDebug("Gaze stream cancelled");
+                            break;
+                        }
+                        else if (rpcEx.StatusCode == Grpc.Core.StatusCode.Unavailable ||
+                                 rpcEx.StatusCode == Grpc.Core.StatusCode.Internal ||
+                                 rpcEx.StatusCode == Grpc.Core.StatusCode.DeadlineExceeded)
+                        {
+                            eyetuitive._logger?.LogWarning("Gaze stream unavailable, retrying...");
+                        }
+                        else
+                        {
+                            eyetuitive._logger?.LogError(e, "Gaze stream error");
+                        }
+                    }
+                    else
+                    {
+                        eyetuitive._logger?.LogError(e, "Stream in gaze failed, retrying...");
+                    }
+                    // Exponential backoff up to a limit
+                    backoff = TimeSpan.FromMilliseconds(Math.Min(backoff.TotalMilliseconds * 2, backoffMaxMs));
+                    try { await Task.Delay(backoff, cancellationToken); } catch { break; }
+                }
             }
         }
 

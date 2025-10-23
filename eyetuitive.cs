@@ -4,6 +4,7 @@ using Google.Protobuf.WellKnownTypes;
 using Grpc.Net.Client;
 using Microsoft.Extensions.Logging;
 using Polly;
+using System.Net.Http;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -211,7 +212,11 @@ namespace GazeFirst
             _connectionCts?.Dispose();
             _connectionCts = new CancellationTokenSource();
 
+#if NET6_0_OR_GREATER
+            _channel = CreateChannel(_host, _port);
+#else
             _channel = GrpcChannel.ForAddress($"http://{_host}:{_port}");
+#endif
             _client = new EyetrackerClient(_channel);
 
             var policy = Policy.Handle<Exception>().WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
@@ -259,6 +264,26 @@ namespace GazeFirst
                 }
             }
         }
+
+        /// <summary>
+        /// For NET6_0_OR_GREATER, create a gRPC channel with HTTP/2 keepalive pings enabled.
+        /// </summary>
+#if NET6_0_OR_GREATER
+        private static GrpcChannel CreateChannel(string host, int port)
+        {
+            var handler = new SocketsHttpHandler
+            {
+                KeepAlivePingDelay = TimeSpan.FromSeconds(60),
+                KeepAlivePingTimeout = TimeSpan.FromSeconds(20),
+#if NET8_0_OR_GREATER
+                KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always,
+#endif
+                EnableMultipleHttp2Connections = true,
+                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+            };
+            return GrpcChannel.ForAddress($"http://{host}:{port}", new GrpcChannelOptions { HttpHandler = handler });
+        }
+#endif
 
         /// <summary>
         /// Monitor the connection

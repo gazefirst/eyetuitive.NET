@@ -79,44 +79,69 @@ namespace GazeFirst.functions
         protected async Task GetPositionAsync(CancellationToken cancellationToken)
         {
             taskRunning = true;
+            TimeSpan backoff = TimeSpan.FromMilliseconds(250);
+            const int backoffMaxMs = 5000;
             try
             {
-                var posstream = _client.SubscribePositioning(new Google.Protobuf.WellKnownTypes.Empty());
-                while (await posstream.ResponseStream.MoveNext(cancellationToken))
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    if (posstream.ResponseStream.Current != null)
+                    try
                     {
-                        var pos = posstream.ResponseStream.Current;
-                        NormedPoint2d left = ConvertFromNormedPoint2D(pos.LeftEyePos);
-                        NormedPoint2d right = ConvertFromNormedPoint2D(pos.RightEyePos);
-                        var positionData = new PositionEventArgs()
+                        var posstream = _client.SubscribePositioning(new Google.Protobuf.WellKnownTypes.Empty());
+                        while (await posstream.ResponseStream.MoveNext(cancellationToken))
                         {
-                            depthInMM = pos.DepthInMM,
-                            leftEyePos = left,
-                            rightEyePos = right,
-                            isLeftEyeOpen = !pos.LeftEyeClosed,
-                            isRightEyeOpen = !pos.RightEyeClosed,
-                            gazeIsPaused = pos.GazeIsPaused
-                        };
-                        OnPositionChanged(positionData);
+                            if (posstream.ResponseStream.Current != null)
+                            {
+                                var pos = posstream.ResponseStream.Current;
+                                NormedPoint2d left = ConvertFromNormedPoint2D(pos.LeftEyePos);
+                                NormedPoint2d right = ConvertFromNormedPoint2D(pos.RightEyePos);
+                                var positionData = new PositionEventArgs()
+                                {
+                                    depthInMM = pos.DepthInMM,
+                                    leftEyePos = left,
+                                    rightEyePos = right,
+                                    isLeftEyeOpen = !pos.LeftEyeClosed,
+                                    isRightEyeOpen = !pos.RightEyeClosed,
+                                    gazeIsPaused = pos.GazeIsPaused
+                                };
+                                OnPositionChanged(positionData);
+                            }
+                        }
+                        // Stream finished normally: short delay and resubscribe
+                        await Task.Delay(backoff, cancellationToken);
+                    }
+                    catch (TaskCanceledException) { break; }
+                    catch (InvalidOperationException)
+                    {
+                        await Task.Delay(backoff, cancellationToken);
+                    }
+                    catch (Exception e)
+                    {
+                        if (e is Grpc.Core.RpcException rpcEx)
+                        {
+                            if (rpcEx.StatusCode == Grpc.Core.StatusCode.Cancelled)
+                            {
+                                eyetuitive._logger?.LogDebug("Positioning stream cancelled");
+                                break;
+                            }
+                            else if (rpcEx.StatusCode == Grpc.Core.StatusCode.Unavailable ||
+                                     rpcEx.StatusCode == Grpc.Core.StatusCode.Internal ||
+                                     rpcEx.StatusCode == Grpc.Core.StatusCode.DeadlineExceeded)
+                            {
+                                eyetuitive._logger?.LogWarning("Positioning stream unavailable, retrying...");
+                            }
+                            else
+                            {
+                                eyetuitive._logger?.LogError(e, "Positioning stream error");
+                            }
+                        }
+                        else
+                            eyetuitive._logger?.LogError(e, "Stream in position failed, retrying...");
+
+                        backoff = TimeSpan.FromMilliseconds(Math.Min(backoff.TotalMilliseconds * 2, backoffMaxMs));
+                        try { await Task.Delay(backoff, cancellationToken); } catch { break; }
                     }
                 }
-            }
-            catch (TaskCanceledException) { } //task cancelled
-            catch (InvalidOperationException) { } //stream already finished / is closed...
-            catch (Exception e)
-            {
-                if (e is Grpc.Core.RpcException rpcEx)
-                {
-                    if (rpcEx.StatusCode == Grpc.Core.StatusCode.Cancelled)
-                        eyetuitive._logger?.LogDebug("Positioning stream cancelled");
-                    else if (rpcEx.StatusCode == Grpc.Core.StatusCode.Unavailable)
-                        eyetuitive._logger?.LogWarning("Positioning stream unavailable / device disconnected");
-                    else
-                        eyetuitive._logger?.LogError(e, "Positioning stream error");
-                }
-                else
-                    eyetuitive._logger?.LogError(e, "Stream in position failed");
             }
             finally
             {
