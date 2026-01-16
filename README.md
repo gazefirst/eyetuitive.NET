@@ -25,7 +25,7 @@ You can connect to eyetuitive via gRPC. Since the transport is based on HTTP/2, 
 
 ## Note on legacy .NET versions
 
-This library supports .NET 6 and .NET 8 (both LTS). However, .NET Framework 4.6.2 and later are only supported on Windows 11, since some underlying legacy gRPC implementations only support WinHttpHandler with http2 in Windows 11.
+This library supports .NET 8 and .NET 10 (both LTS). However, .NET Framework 4.6.2 and later are only supported on Windows 11, since some underlying legacy gRPC implementations only support WinHttpHandler with http2 in Windows 11.
 
 ## Sample
 
@@ -73,4 +73,4 @@ Distributed under our custom license. See [license file](LICENSE.md) for more in
 
 ## About
 
-(c) 2024 - 2025 GazeFirst GmbH. Author: Mathias Anhalt
+(c) 2024 - 2026 GazeFirst GmbH. Author: Mathias Anhalt

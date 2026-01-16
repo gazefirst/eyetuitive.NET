@@ -303,7 +303,13 @@ namespace GazeFirst
         private async void OnConnectedChanged(bool isConnected)
         {
             _logger?.LogInformation($"USB device connection status changed: {isConnected}");
-            if (isConnected)
+            if (!isConnected)
+            {
+                // Device disconnected - nothing to do, the event already notified subscribers
+                return;
+            }
+
+            try
             {
                 _client = new EyetrackerClient(_channel);
 #if NET6_0_OR_GREATER
@@ -318,6 +324,10 @@ namespace GazeFirst
                     Settings?.updateHostSettings();
                 }
 #endif
+            }
+            catch (Grpc.Core.RpcException ex)
+            {
+                _logger?.LogWarning(ex, "Failed to reconnect to eye tracker after connection change");
             }
         }
 

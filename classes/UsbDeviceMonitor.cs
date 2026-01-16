@@ -13,7 +13,8 @@ namespace eyetuitive.NET.classes
         private const string _targetVendorId = "36F8"; //GazeFirst USB Vendor ID
         private static string[] _targetProductIds = { "0002", "0003", "0004" }; //GazeFirst USB Product IDs
         private static bool _isConnected = false;
-        private static Task checkerTask;
+        private static bool _initialCheckDone = false;
+        private static readonly object _initLock = new object();
 
         /// <summary>
         /// ConnectedChanged event (true if connected, false if disconnected)
@@ -21,18 +22,41 @@ namespace eyetuitive.NET.classes
         internal static event Action<bool> ConnectedChanged;
 
         /// <summary>
-        /// Check if the target USB device is connected
+        /// Check if the target USB device is connected.
+        /// Only queries USB devices on the first call; subsequent calls return cached state
+        /// which is kept up-to-date by the WMI event watcher.
         /// </summary>
         /// <returns></returns>
         internal static bool CheckConnect()
         {
-            bool connected = isAvailable();
-            if (connected != _isConnected)
+            EnsureInitialCheck();
+            return _isConnected;
+        }
+
+        /// <summary>
+        /// Performs the initial USB device query if not already done.
+        /// </summary>
+        private static void EnsureInitialCheck()
+        {
+            if (_initialCheckDone) return;
+
+            lock (_initLock)
             {
-                _isConnected = connected;
-                ConnectedChanged?.Invoke(_isConnected);
+                if (_initialCheckDone) return;
+
+                if (Helper.IsWindowsPlatform())
+                {
+                    try
+                    {
+                        _isConnected = queryUSBdevices();
+                    }
+                    catch (Exception)
+                    {
+                        _isConnected = false;
+                    }
+                }
+                _initialCheckDone = true;
             }
-            return connected;
         }
 
         static UsbDeviceMonitor()
@@ -105,32 +129,6 @@ namespace eyetuitive.NET.classes
                         }
                     }
                 }
-            }
-        }
-
-        /// <summary>
-        /// Check if the target USB device is connected
-        /// </summary>
-        private static bool isAvailable()
-        {
-            if (!Helper.IsWindowsPlatform()) 
-                throw new PlatformNotSupportedException("USB device monitoring is only supported on Windows platform.");
-            try
-            {
-                bool res = false;
-                if (checkerTask == null || checkerTask.IsCompleted)
-                {
-                    checkerTask = Task.Run(() =>
-                    {
-                        res = queryUSBdevices();
-                    });
-                }
-                Task.WaitAll(checkerTask);
-                return res;
-            }
-            catch (Exception)
-            {
-                return false;
             }
         }
 
