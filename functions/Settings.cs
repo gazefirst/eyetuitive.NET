@@ -66,21 +66,21 @@ namespace GazeFirst.functions
         }
 
         /// <summary>
-        /// Return device info (serial number, firmware version, hardware config)
+        /// Return device info (serial number, firmware version, hardware config, cpu temp)
         /// Note: this is mostly for internal purposes
         /// </summary>
         /// <returns></returns>
-        public (long serialNumber, string firmwareVersion, int hardwareConfig) GetDeviceInfo()
+        public (long serialNumber, string firmwareVersion, int hardwareConfig, double cpuTemp) GetDeviceInfo()
         {
             try
             {
                 var result = _client.GetDeviceInfo(new Google.Protobuf.WellKnownTypes.Empty());
-                return (result.Serial, result.Version, result.HwConfig);
+                return (result.Serial, result.Version, result.HwConfig, result.CpuTemp);
             }
             catch (Exception ex)
             {
                 eyetuitive._logger?.LogError(ex, "Failed to get device info");
-                return (0, "unknown", 0);
+                return (0, "unknown", 0, 0d);
             }
         }
 

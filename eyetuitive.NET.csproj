@@ -6,7 +6,7 @@
 	  <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 	  <Copyright>(c) 2024 - 2026 GazeFirst GmbH</Copyright>
 	  <PackageId>eyetuitive.NET</PackageId>
-	  <Version>1.7.0</Version>
+	  <Version>1.7.1</Version>
 	  <Authors>Mathias Anhalt</Authors>
 	  <Company>GazeFirst GmbH</Company>
 	  <PackageDescription>.NET API for eyetuitive eye tracking devices.</PackageDescription>
