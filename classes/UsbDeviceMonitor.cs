@@ -15,6 +15,9 @@ namespace eyetuitive.NET.classes
         private static bool _isConnected = false;
         private static bool _initialCheckDone = false;
         private static readonly object _initLock = new object();
+        // Held for the life of the process: Start() begins asynchronous delivery and returns, so
+        // disposing the watcher stops it and no events are ever raised.
+        private static ManagementEventWatcher _watcher;
 
         /// <summary>
         /// ConnectedChanged event (true if connected, false if disconnected)
@@ -80,12 +83,10 @@ namespace eyetuitive.NET.classes
                 };
 
                 var scope = new ManagementScope("root\\CIMV2");
-                using (var moWatcher = new ManagementEventWatcher(scope, query))
-                {
-                    moWatcher.Options.Timeout = ManagementOptions.InfiniteTimeout;
-                    moWatcher.EventArrived += new EventArrivedEventHandler(DeviceChangedEvent);
-                    moWatcher.Start();
-                }
+                _watcher = new ManagementEventWatcher(scope, query);
+                _watcher.Options.Timeout = ManagementOptions.InfiniteTimeout;
+                _watcher.EventArrived += new EventArrivedEventHandler(DeviceChangedEvent);
+                _watcher.Start();
             }
             catch (Exception ex)
             {
