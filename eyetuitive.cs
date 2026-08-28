@@ -244,7 +244,11 @@ namespace GazeFirst
                             HttpClient = httpClient,
                         });
                         _client = new EyetrackerClient(_channel);
-                        var info = await _client.GetDeviceInfoAsync(new Empty());
+                        // Honour timeoutInSeconds here too: without a deadline this call is bounded
+                        // only by the HttpClient defaults, so the parameter had no effect on this
+                        // target and callers could not cap how long a connect attempt takes.
+                        var info = await _client.GetDeviceInfoAsync(new Empty(),
+                            deadline: DateTime.UtcNow.AddSeconds(timeoutInSeconds));
                         MonitorConnection();
                         return (info.Serial != 0);
 #endif
@@ -252,6 +256,13 @@ namespace GazeFirst
                     catch (TaskCanceledException)
                     {
                         // Log connection timeout
+                        return false;
+                    }
+                    catch (Grpc.Core.RpcException ex) when (ex.StatusCode == Grpc.Core.StatusCode.DeadlineExceeded)
+                    {
+                        // A deadline is the non-NET6 equivalent of the cancellation above, and gRPC
+                        // reports it as RpcException rather than TaskCanceledException. Treated the
+                        // same way so a timeout does not turn into a retry on one target only.
                         return false;
                     }
                 });
