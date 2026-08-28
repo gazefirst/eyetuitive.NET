@@ -212,10 +212,25 @@ namespace GazeFirst
             _connectionCts?.Dispose();
             _connectionCts = new CancellationTokenSource();
 
+            // Built once, before the retry policy. Creating the channel inside the policy meant a
+            // new HttpClient/handler/channel per attempt, each overwriting the last without disposing
+            // it, and - because a fresh channel resolves the host again - the default mDNS name was
+            // re-resolved on every attempt. On Windows that resolution measures ~2.7s and is not
+            // cached, so with the 2s/4s/8s backoff a connect took ~15s to succeed.
+            _channel?.ShutdownAsync().Wait(TimeSpan.FromSeconds(1));
 #if NET6_0_OR_GREATER
             _channel = CreateChannel(_host, _port);
 #else
-            _channel = GrpcChannel.ForAddress($"http://{_host}:{_port}");
+            var httpClientHandler = new WinHttpHandler
+            {
+                ClientCertificateOption = ClientCertificateOption.Manual,
+                ServerCertificateValidationCallback = (a, b, c, d) => true
+            };
+            var httpClient = new HttpClient(httpClientHandler);
+            _channel = GrpcChannel.ForAddress($"https://{_host}:{_port + 1}", new GrpcChannelOptions
+            {
+                HttpClient = httpClient,
+            });
 #endif
             _client = new EyetrackerClient(_channel);
 
@@ -233,17 +248,7 @@ namespace GazeFirst
                         MonitorConnection();
                         return true;
 #else
-                        var httpClientHandler = new System.Net.Http.WinHttpHandler()
-                        {
-                            ClientCertificateOption = System.Net.Http.ClientCertificateOption.Manual,
-                            ServerCertificateValidationCallback = (a, b, c, d) => true
-                        };
-                        var httpClient = new System.Net.Http.HttpClient(httpClientHandler);
-                        _channel = GrpcChannel.ForAddress($"https://{_host}:{_port + 1}", new GrpcChannelOptions
-                        {
-                            HttpClient = httpClient,
-                        });
-                        _client = new EyetrackerClient(_channel);
+                        // Retry only the call; the channel above is reused across attempts.
                         var info = await _client.GetDeviceInfoAsync(new Empty());
                         MonitorConnection();
                         return (info.Serial != 0);
